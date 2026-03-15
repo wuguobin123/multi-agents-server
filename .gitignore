@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
+.env
+dev-plan.md
+data/runtime.db
+data/runtime.db-*
+data/vector_store.json
+data/qdrant/

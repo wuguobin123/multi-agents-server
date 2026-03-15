@@ -1,0 +1,7 @@
+[
+  {
+    "chunk_id": "0-0",
+    "source": "data/knowledge_base/deploy.md",
+    "text": "# 部署流程说明\n\n## 单机部署\n\n第一阶段建议使用 Docker Compose 在腾讯云单机环境部署服务。推荐机器规格至少为 2 核 4G，并通过环境变量注入模型密钥。\n\n## 启动流程\n\n1. 准备 `.env` 配置文件，填写模型 Provider、模型名称和 API Key。\n2. 执行 `docker compose up -d --build` 启动 API 服务。\n3. 使用 Nginx 反向代理到应用端口，并保留健康检查接口 `/healthz`。\n4. 观察标准输出日志，确认 Planner、Agent 和 Tool 调用链路正常。\n\n## 运维建议\n\n日志建议同时输出到标准输出和文件归档。若知识库内容发生变化，需要重新执行索引脚本刷新检索清单。"
+  }
+]
