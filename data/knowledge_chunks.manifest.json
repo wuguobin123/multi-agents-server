@@ -3,8 +3,8 @@
   "embedding_model": "mock-embedding",
   "embedding_dimension": 256,
   "embedding_fingerprint": "mock:mock-embedding:256",
-  "indexed_at": "2026-03-15T14:58:41.981910Z",
-  "chunk_count": 1,
+  "indexed_at": "2026-03-16T01:13:15.111588Z",
+  "chunk_count": 5,
   "vector_store_backend": "qdrant",
   "collection_name": "knowledge_chunks"
 }

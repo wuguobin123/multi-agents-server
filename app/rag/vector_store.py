@@ -213,6 +213,7 @@ class QdrantHttpVectorStore:
             json=json,
             headers=headers,
             timeout=self._timeout,
+            trust_env=False,
         )
         if allow_404 and response.status_code == 404:
             return response
