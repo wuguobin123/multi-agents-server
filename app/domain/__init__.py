@@ -1,6 +1,7 @@
 from app.domain.entities import (
     AgentRunRecord,
     IngestionJobRecord,
+    KnowledgeBaseRecord,
     KnowledgeChunkRecord,
     KnowledgeDocumentRecord,
     MessageRecord,
@@ -11,6 +12,7 @@ from app.domain.entities import (
 __all__ = [
     "AgentRunRecord",
     "IngestionJobRecord",
+    "KnowledgeBaseRecord",
     "KnowledgeChunkRecord",
     "KnowledgeDocumentRecord",
     "MessageRecord",

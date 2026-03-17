@@ -19,6 +19,9 @@ class Retriever:
                 source=item.source,
                 snippet=item.text[:240],
                 score=item.score,
+                chunk_id=item.chunk_id,
+                document_id=item.document_id,
+                knowledge_base_id=item.knowledge_base_id,
             )
             for item in results
         ]

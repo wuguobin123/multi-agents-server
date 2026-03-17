@@ -53,7 +53,7 @@ database:
     )
 
     with repository.engine.connect() as conn:
-        assert conn.execute(text("SELECT COUNT(*) FROM schema_migration")).scalar_one() == 1
+        assert conn.execute(text("SELECT COUNT(*) FROM schema_migration")).scalar_one() == 2
         assert conn.execute(text("SELECT COUNT(*) FROM chat_session")).scalar_one() == 1
         assert conn.execute(text("SELECT COUNT(*) FROM chat_message")).scalar_one() == 1
         assert conn.execute(text("SELECT COUNT(*) FROM agent_run")).scalar_one() == 1
@@ -80,6 +80,6 @@ database:
     second = SQLExecutionRepository(settings)
 
     with first.engine.connect() as conn:
-        assert conn.execute(text("SELECT COUNT(*) FROM schema_migration")).scalar_one() == 1
+        assert conn.execute(text("SELECT COUNT(*) FROM schema_migration")).scalar_one() == 2
     with second.engine.connect() as conn:
-        assert conn.execute(text("SELECT COUNT(*) FROM schema_migration")).scalar_one() == 1
+        assert conn.execute(text("SELECT COUNT(*) FROM schema_migration")).scalar_one() == 2

@@ -53,8 +53,23 @@ tools:
 rag:
   enabled: true
   docs_path: data/knowledge_base
-  chunk_size: 700
-  chunk_overlap: 80
+  chunking:
+    strategy: recursive_character
+    chunk_size: 700
+    chunk_overlap: 80
+    qa_question_prefixes:
+      - "Q:"
+      - "Q："
+      - "问:"
+      - "问："
+      - "Question:"
+    qa_answer_prefixes:
+      - "A:"
+      - "A："
+      - "答:"
+      - "答："
+      - "Answer:"
+    qa_fallback_to_recursive: true
   top_k: 4
   vector_store_backend: local
   local_store_path: data/vector_store.json

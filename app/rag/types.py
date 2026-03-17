@@ -30,6 +30,8 @@ class VectorPoint(BaseModel):
 
 class SearchResult(BaseModel):
     chunk_id: str
+    document_id: str | None = None
+    knowledge_base_id: str | None = None
     source: str
     text: str
     score: float
@@ -45,3 +47,5 @@ class IndexMetadata(BaseModel):
     chunk_count: int
     vector_store_backend: str
     collection_name: str | None = None
+    chunking_strategy: str | None = None
+    chunking_config: dict[str, Any] = Field(default_factory=dict)

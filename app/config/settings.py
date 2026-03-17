@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -68,15 +68,36 @@ class ToolsSettings(BaseModel):
     mcp_tools: list[ToolConfig] = Field(default_factory=list)
 
 
+ChunkingStrategy = Literal["recursive_character", "qa_pair"]
+
+
+class ChunkingSettings(BaseModel):
+    strategy: ChunkingStrategy = "recursive_character"
+    chunk_size: int = 700
+    chunk_overlap: int = 80
+    qa_question_prefixes: list[str] = Field(
+        default_factory=lambda: ["Q:", "Q：", "问:", "问：", "Question:"]
+    )
+    qa_answer_prefixes: list[str] = Field(
+        default_factory=lambda: ["A:", "A：", "答:", "答：", "Answer:"]
+    )
+    qa_fallback_to_recursive: bool = True
+
+    def profile(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+
 class RAGSettings(BaseModel):
     enabled: bool = True
     docs_path: str = "data/knowledge_base"
-    chunk_size: int = 700
-    chunk_overlap: int = 80
+    uploads_path: str = "data/uploads"
+    chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
     top_k: int = 4
     vector_store_backend: str = "local"
     local_store_path: str = "data/vector_store.json"
     collection_name: str = "knowledge_chunks"
+    storage_backend: str = "local"
+    storage_public_base_url: str | None = None
     embedding_provider: str = "mock"
     embedding_model: str = "mock-embedding"
     embedding_dimension: int = 256
@@ -89,6 +110,29 @@ class RAGSettings(BaseModel):
     request_timeout_seconds: int = 10
     qdrant_url: str | None = None
     qdrant_api_key: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_chunking_settings(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        raw_chunking = normalized.get("chunking")
+        chunking = dict(raw_chunking) if isinstance(raw_chunking, dict) else {}
+        legacy_mapping = {
+            "splitter_strategy": "strategy",
+            "chunk_size": "chunk_size",
+            "chunk_overlap": "chunk_overlap",
+            "qa_question_prefixes": "qa_question_prefixes",
+            "qa_answer_prefixes": "qa_answer_prefixes",
+            "qa_fallback_to_recursive": "qa_fallback_to_recursive",
+        }
+        for legacy_key, chunking_key in legacy_mapping.items():
+            if legacy_key in normalized and chunking_key not in chunking:
+                chunking[chunking_key] = normalized[legacy_key]
+        if chunking:
+            normalized["chunking"] = chunking
+        return normalized
 
 
 class ServerSettings(BaseModel):
@@ -149,11 +193,14 @@ def _apply_env_overrides(config: dict[str, Any]) -> dict[str, Any]:
     result.setdefault("model", {})
     result.setdefault("database", {})
     result.setdefault("rag", {})
+    result["rag"].setdefault("chunking", {})
     result.setdefault("server", {})
+    result.setdefault("app", {})
 
     env_pairs = {
         ("model", "provider"): os.getenv("MODEL_PROVIDER"),
         ("model", "name"): os.getenv("MODEL_NAME"),
+        ("model", "timeout_seconds"): os.getenv("MODEL_TIMEOUT_SECONDS"),
         ("model", "api_key"): os.getenv("MINIMAX_API_KEY"),
         ("model", "base_url"): os.getenv("MINIMAX_BASE_URL"),
         ("database", "enabled"): os.getenv("DATABASE_ENABLED"),
@@ -162,6 +209,9 @@ def _apply_env_overrides(config: dict[str, Any]) -> dict[str, Any]:
         ("rag", "vector_store_backend"): os.getenv("RAG_VECTOR_STORE_BACKEND"),
         ("rag", "local_store_path"): os.getenv("RAG_LOCAL_STORE_PATH"),
         ("rag", "collection_name"): os.getenv("RAG_COLLECTION_NAME"),
+        ("rag", "uploads_path"): os.getenv("RAG_UPLOADS_PATH"),
+        ("rag", "storage_backend"): os.getenv("RAG_STORAGE_BACKEND"),
+        ("rag", "storage_public_base_url"): os.getenv("RAG_STORAGE_PUBLIC_BASE_URL"),
         ("rag", "embedding_provider"): first_env("EMBEDDING_PROVIDER", "RAG_EMBEDDING_PROVIDER"),
         ("rag", "embedding_model"): first_env("EMBEDDING_MODEL", "RAG_EMBEDDING_MODEL"),
         ("rag", "embedding_dimension"): first_env("EMBEDDING_DIMENSION", "RAG_EMBEDDING_DIMENSION"),
@@ -179,11 +229,28 @@ def _apply_env_overrides(config: dict[str, Any]) -> dict[str, Any]:
         ("server", "host"): os.getenv("SERVER_HOST"),
         ("server", "port"): os.getenv("SERVER_PORT"),
         ("server", "log_level"): os.getenv("LOG_LEVEL"),
+        ("app", "request_timeout_seconds"): os.getenv("APP_REQUEST_TIMEOUT_SECONDS"),
     }
     for (section, key), value in env_pairs.items():
         if value in (None, ""):
             continue
         result[section][key] = value
+
+    chunking_env_pairs = {
+        "strategy": os.getenv("RAG_CHUNKING_STRATEGY"),
+        "chunk_size": os.getenv("RAG_CHUNK_SIZE"),
+        "chunk_overlap": os.getenv("RAG_CHUNK_OVERLAP"),
+        "qa_question_prefixes": os.getenv("RAG_QA_QUESTION_PREFIXES"),
+        "qa_answer_prefixes": os.getenv("RAG_QA_ANSWER_PREFIXES"),
+        "qa_fallback_to_recursive": os.getenv("RAG_QA_FALLBACK_TO_RECURSIVE"),
+    }
+    for key, value in chunking_env_pairs.items():
+        if value in (None, ""):
+            continue
+        if key in {"qa_question_prefixes", "qa_answer_prefixes"}:
+            result["rag"]["chunking"][key] = [item.strip() for item in value.split(",") if item.strip()]
+            continue
+        result["rag"]["chunking"][key] = value
     return result
 
 

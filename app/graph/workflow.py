@@ -66,6 +66,7 @@ def build_graph(
                 query=state["query"],
                 session_id=state["session_id"],
                 request_id=state["request_id"],
+                knowledge_base_id=state.get("knowledge_base_id"),
                 plan_intent=state.get("plan").intent if state.get("plan") else None,
                 chat_history=state.get("chat_history", []),
                 planner_hints=state.get("planner_hints", []),

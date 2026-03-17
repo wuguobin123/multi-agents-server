@@ -15,7 +15,7 @@ class QAAgent:
         self._provider = provider
 
     async def run(self, context: AgentExecutionContext) -> AgentExecutionResult:
-        citations = await self._rag.search(context.query)
+        citations = await self._rag.search(context.query, knowledge_base_id=context.knowledge_base_id)
         if not citations:
             return AgentExecutionResult(
                 agent_name=self.name,
@@ -23,7 +23,7 @@ class QAAgent:
                 answer="知识库没有检索到足够内容，无法生成可靠回答。",
                 citations=[],
                 error_code="rag_empty",
-                metadata={"reason": "rag_empty"},
+                metadata={"reason": "rag_empty", "knowledge_base_id": context.knowledge_base_id},
             )
         answer = await self._synthesize_answer(context.query, citations)
         return AgentExecutionResult(
@@ -31,7 +31,7 @@ class QAAgent:
             success=True,
             answer=answer,
             citations=citations,
-            metadata={"citation_count": len(citations)},
+            metadata={"citation_count": len(citations), "knowledge_base_id": context.knowledge_base_id},
         )
 
     def describe(self) -> AgentDescriptor:

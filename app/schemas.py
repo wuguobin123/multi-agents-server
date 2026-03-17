@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from app.config.settings import ChunkingSettings
+
 
 IntentType = Literal["qa", "tool", "hybrid", "fallback"]
 ToolSource = Literal["skill", "mcp"]
@@ -16,6 +18,9 @@ class Citation(BaseModel):
     source: str
     snippet: str
     score: float = 0.0
+    chunk_id: str | None = None
+    document_id: str | None = None
+    knowledge_base_id: str | None = None
 
 
 class Plan(BaseModel):
@@ -100,6 +105,7 @@ class AgentExecutionContext(BaseModel):
     query: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
     request_id: str = Field(min_length=1)
+    knowledge_base_id: str | None = None
     plan_intent: IntentType | None = None
     chat_history: list[ChatHistoryMessage] = Field(default_factory=list)
     planner_hints: list[str] = Field(default_factory=list)
@@ -119,6 +125,7 @@ class AgentExecutionResult(BaseModel):
 class ChatRequest(BaseModel):
     query: str = Field(min_length=1)
     session_id: str
+    knowledge_base_id: str | None = None
     chat_history: list[ChatHistoryMessage] = Field(default_factory=list)
 
 
@@ -158,3 +165,111 @@ class ChatResponse(BaseModel):
     trace: ChatTrace
     error: ErrorDetail | None = None
     meta: ResponseMeta
+
+
+class RAGRebuildRequest(BaseModel):
+    chunking: ChunkingSettings | None = None
+
+
+class RAGConfigResponse(BaseModel):
+    enabled: bool
+    docs_path: str
+    top_k: int
+    vector_store_backend: str
+    collection_name: str
+    chunking: dict[str, Any]
+    available_chunking_strategies: list[dict[str, Any]] = Field(default_factory=list)
+    index_status: dict[str, Any] = Field(default_factory=dict)
+
+
+class RAGRebuildResponse(BaseModel):
+    chunk_count: int
+    chunking: dict[str, Any]
+    index_status: dict[str, Any] = Field(default_factory=dict)
+
+
+class KnowledgeBaseCreateRequest(BaseModel):
+    code: str = Field(min_length=2, max_length=64)
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = None
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+    embedding_dimension: int | None = None
+    vector_backend: str | None = None
+
+
+class KnowledgeBaseSummary(BaseModel):
+    knowledge_base_id: str
+    code: str
+    name: str
+    description: str | None = None
+    status: str
+    embedding_provider: str
+    embedding_model: str
+    embedding_dimension: int
+    vector_backend: str
+    vector_collection: str
+    storage_backend: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class KnowledgeBaseListResponse(BaseModel):
+    items: list[KnowledgeBaseSummary] = Field(default_factory=list)
+
+
+class KnowledgeDocumentSummary(BaseModel):
+    document_id: str
+    knowledge_base_id: str
+    source: str
+    original_filename: str
+    storage_path: str
+    file_url: str | None = None
+    file_hash: str | None = None
+    file_size: int = 0
+    mime_type: str | None = None
+    parser_type: str = "text"
+    chunking_strategy: str | None = None
+    chunking_config: dict[str, Any] = Field(default_factory=dict)
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+    embedding_dimension: int | None = None
+    status: str
+    version: int = 1
+    is_latest: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class KnowledgeDocumentListResponse(BaseModel):
+    items: list[KnowledgeDocumentSummary] = Field(default_factory=list)
+
+
+class IngestionJobResponse(BaseModel):
+    job_id: int
+    knowledge_base_id: str
+    document_id: str | None = None
+    source: str
+    status: str
+    stage: str
+    message: str | None = None
+    error_message: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    updated_at: datetime
+
+
+class DocumentUploadResponse(BaseModel):
+    knowledge_base_id: str
+    document: KnowledgeDocumentSummary
+    job: IngestionJobResponse
+
+
+class DocumentDeleteResponse(BaseModel):
+    knowledge_base_id: str
+    document_id: str
+    deleted: bool
+

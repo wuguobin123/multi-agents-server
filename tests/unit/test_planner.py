@@ -5,6 +5,7 @@ import json
 from app.agents import PlannerAgent
 from app.config import load_settings
 from app.models.base import ChatMessage, ModelProvider, ModelResponse
+from app.models.mock import MockProvider
 
 
 class InvalidPlannerProvider(ModelProvider):
@@ -49,7 +50,7 @@ class HybridPlannerProvider(ModelProvider):
 
 
 def test_planner_routes_to_qa_for_knowledge_query() -> None:
-    planner = PlannerAgent(load_settings("configs/app.yaml"))
+    planner = PlannerAgent(load_settings("configs/app.yaml"), provider=MockProvider())
 
     plan, trace = __import__("asyncio").run(planner.plan_with_trace("帮我总结知识库中的部署流程"))
 
@@ -60,7 +61,7 @@ def test_planner_routes_to_qa_for_knowledge_query() -> None:
 
 
 def test_planner_routes_to_tool_for_tool_query() -> None:
-    planner = PlannerAgent(load_settings("configs/app.yaml"))
+    planner = PlannerAgent(load_settings("configs/app.yaml"), provider=MockProvider())
 
     plan = __import__("asyncio").run(planner.plan("请调用工具执行一次本地检查"))
 
@@ -70,7 +71,7 @@ def test_planner_routes_to_tool_for_tool_query() -> None:
 
 
 def test_planner_falls_back_when_target_agent_is_unavailable() -> None:
-    planner = PlannerAgent(load_settings("configs/app.yaml"))
+    planner = PlannerAgent(load_settings("configs/app.yaml"), provider=MockProvider())
 
     plan = __import__("asyncio").run(
         planner.plan("请调用工具执行一次本地检查", available_agents=["qa_agent", "fallback_agent"])

@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from app.agents import AgentRegistry, FallbackAgent, PlannerAgent, QAAgent, ToolAgent
 from app.config import AppSettings, get_settings
+from app.config.settings import ChunkingSettings
 from app.domain import AgentRunRecord, MessageRecord, SessionRecord, ToolCallRecord
 from app.errors import ErrorCode
 from app.graph import build_graph
@@ -15,7 +16,23 @@ from app.models import build_model_provider
 from app.observability import get_logger, logging_context
 from app.rag import RAGService
 from app.repositories import ExecutionRepository, build_execution_repository
-from app.schemas import AgentRunTrace, ChatRequest, ChatResponse, ChatTrace, Citation, ErrorDetail, ResponseMeta
+from app.schemas import (
+    AgentRunTrace,
+    ChatRequest,
+    ChatResponse,
+    ChatTrace,
+    Citation,
+    DocumentDeleteResponse,
+    DocumentUploadResponse,
+    IngestionJobResponse,
+    KnowledgeBaseCreateRequest,
+    KnowledgeBaseListResponse,
+    KnowledgeBaseSummary,
+    KnowledgeDocumentListResponse,
+    KnowledgeDocumentSummary,
+    ErrorDetail,
+    ResponseMeta,
+)
 from app.tools import ToolRegistry
 
 
@@ -76,6 +93,7 @@ class AppRuntime:
             "query": request.query,
             "request_id": resolved_request_id,
             "session_id": request.session_id,
+            "knowledge_base_id": request.knowledge_base_id,
             "chat_history": request.chat_history,
             "planner_runs": [],
             "selected_agents": [],
@@ -190,6 +208,109 @@ class AppRuntime:
             },
         }
 
+    def rag_configuration(self) -> dict[str, object]:
+        return {
+            "enabled": self.settings.rag.enabled,
+            "docs_path": str(self.rag_service.docs_path),
+            "top_k": self.settings.rag.top_k,
+            "vector_store_backend": self.settings.rag.vector_store_backend,
+            "collection_name": self.settings.rag.collection_name,
+            "chunking": self.rag_service.chunking_profile()["active"],
+            "available_chunking_strategies": self.rag_service.chunking_profile()["available_strategies"],
+            "index_status": self.rag_service.index_status(),
+        }
+
+    def rebuild_knowledge_base(self, chunking: ChunkingSettings | None = None) -> dict[str, object]:
+        chunks = self.rag_service.rebuild(chunking=chunking)
+        return {
+            "chunk_count": len(chunks),
+            "chunking": self.rag_service.chunking_profile()["active"],
+            "index_status": self.rag_service.index_status(),
+        }
+
+    def create_knowledge_base(self, payload: KnowledgeBaseCreateRequest) -> KnowledgeBaseSummary:
+        knowledge_base = self.rag_service.create_knowledge_base(
+            code=payload.code,
+            name=payload.name,
+            description=payload.description,
+            embedding_provider=payload.embedding_provider,
+            embedding_model=payload.embedding_model,
+            embedding_dimension=payload.embedding_dimension,
+            vector_backend=payload.vector_backend,
+        )
+        return KnowledgeBaseSummary.model_validate(knowledge_base.model_dump())
+
+    def list_knowledge_bases(self) -> KnowledgeBaseListResponse:
+        items = [KnowledgeBaseSummary.model_validate(item.model_dump()) for item in self.rag_service.list_knowledge_bases()]
+        return KnowledgeBaseListResponse(items=items)
+
+    def upload_document(
+        self,
+        *,
+        knowledge_base_id: str,
+        filename: str,
+        content: bytes,
+        mime_type: str | None,
+        chunking: ChunkingSettings | None = None,
+        embedding_provider: str | None = None,
+        embedding_model: str | None = None,
+        embedding_dimension: int | None = None,
+    ) -> tuple[DocumentUploadResponse, bool]:
+        document, job_id, should_ingest = self.rag_service.register_document_upload(
+            knowledge_base_id=knowledge_base_id,
+            filename=filename,
+            content=content,
+            mime_type=mime_type,
+            chunking=chunking,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
+        )
+        job = self.rag_service.get_ingestion_job(job_id)
+        if job is None:
+            raise RuntimeError(f"Ingestion job not found after upload: {job_id}")
+        return (
+            DocumentUploadResponse(
+                knowledge_base_id=knowledge_base_id,
+                document=KnowledgeDocumentSummary.model_validate(document.model_dump()),
+                job=IngestionJobResponse(job_id=job_id, **job.model_dump()),
+            ),
+            should_ingest,
+        )
+
+    def process_ingestion_job(self, job_id: int) -> dict[str, object]:
+        return self.rag_service.run_ingestion_job(job_id)
+
+    def list_documents(self, knowledge_base_id: str) -> KnowledgeDocumentListResponse:
+        items = [
+            KnowledgeDocumentSummary.model_validate(item.model_dump())
+            for item in self.rag_service.list_knowledge_documents(knowledge_base_id)
+        ]
+        return KnowledgeDocumentListResponse(items=items)
+
+    def get_ingestion_job(self, job_id: int) -> IngestionJobResponse | None:
+        job = self.rag_service.get_ingestion_job(job_id)
+        if job is None:
+            return None
+        return IngestionJobResponse(job_id=job_id, **job.model_dump())
+
+    def reindex_document(self, document_id: str) -> IngestionJobResponse:
+        job_id = self.rag_service.reindex_document(document_id)
+        job = self.rag_service.get_ingestion_job(job_id)
+        if job is None:
+            raise RuntimeError(f"Ingestion job not found after reindex: {job_id}")
+        return IngestionJobResponse(job_id=job_id, **job.model_dump())
+
+    def delete_document(self, document_id: str) -> DocumentDeleteResponse:
+        document = self.rag_service.delete_document(document_id)
+        if document is None:
+            return DocumentDeleteResponse(knowledge_base_id="", document_id=document_id, deleted=False)
+        return DocumentDeleteResponse(
+            knowledge_base_id=document.knowledge_base_id,
+            document_id=document.document_id,
+            deleted=True,
+        )
+
     def _build_response(
         self,
         *,
@@ -243,7 +364,7 @@ class AppRuntime:
             SessionRecord(
                 session_id=request.session_id,
                 status="active",
-                metadata={"last_query": request.query},
+                metadata={"last_query": request.query, "knowledge_base_id": request.knowledge_base_id},
             )
         )
         self.repository.append_message(
@@ -261,7 +382,10 @@ class AppRuntime:
             SessionRecord(
                 session_id=response.meta.session_id,
                 status=status,
-                metadata={"request_id": response.meta.request_id},
+                metadata={
+                    "request_id": response.meta.request_id,
+                    "knowledge_base_id": response.citations[0].knowledge_base_id if response.citations else None,
+                },
             )
         )
         self.repository.append_message(

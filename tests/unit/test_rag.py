@@ -117,3 +117,105 @@ database:
 
     with pytest.raises(RuntimeError, match="rebuild required"):
         await switched_rag.search("总结部署流程")
+
+
+async def test_rag_can_split_qa_pairs_with_dedicated_strategy(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "faq.md").write_text(
+        """
+# 常见问题
+
+## 问：知识库新增的链路验证口令是什么？
+答：蓝莓管道-20260315
+
+## Q: 如何触发知识库重建？
+A: 运行 build_kb 脚本或者调用重建接口。
+""".strip(),
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "app.yaml"
+    config_path.write_text(
+        f"""
+model:
+  provider: mock
+rag:
+  enabled: true
+  docs_path: {docs_dir}
+  vector_store_backend: local
+  local_store_path: {tmp_path / "vectors.json"}
+  bootstrap_on_startup: false
+  chunking:
+    strategy: qa_pair
+database:
+  enabled: false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path)
+    rag = RAGService(settings)
+    chunks = rag.rebuild()
+
+    assert len(chunks) == 2
+    assert chunks[0].metadata["chunk_strategy"] == "qa_pair"
+    assert "蓝莓管道-20260315" in chunks[0].text
+    readiness = rag.readiness()
+    assert readiness["current_chunking"]["active"]["strategy"] == "qa_pair"
+    assert readiness["index_metadata"]["chunking_strategy"] == "qa_pair"
+
+
+async def test_rag_requires_rebuild_when_chunking_strategy_changes(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "faq.md").write_text("Q: 如何部署？\nA: 先构建镜像再启动服务。", encoding="utf-8")
+    vector_path = tmp_path / "vectors.json"
+    config_path = tmp_path / "app.yaml"
+    config_path.write_text(
+        f"""
+model:
+  provider: mock
+rag:
+  enabled: true
+  docs_path: {docs_dir}
+  vector_store_backend: local
+  local_store_path: {vector_path}
+  bootstrap_on_startup: false
+  chunking:
+    strategy: recursive_character
+database:
+  enabled: false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path)
+    rag = RAGService(settings)
+    rag.rebuild()
+
+    switched_config_path = tmp_path / "app-switched.yaml"
+    switched_config_path.write_text(
+        f"""
+model:
+  provider: mock
+rag:
+  enabled: true
+  docs_path: {docs_dir}
+  vector_store_backend: local
+  local_store_path: {vector_path}
+  bootstrap_on_startup: false
+  chunking:
+    strategy: qa_pair
+database:
+  enabled: false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    switched_settings = load_settings(switched_config_path)
+    switched_rag = RAGService(switched_settings)
+
+    status = switched_rag.index_status()
+
+    assert status["needs_rebuild"] is True
+    assert "chunking_strategy_changed" in status["reasons"]

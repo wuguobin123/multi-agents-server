@@ -72,23 +72,62 @@ class ToolCallModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class KnowledgeBaseModel(Base):
+    __tablename__ = "knowledge_base"
+
+    knowledge_base_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    embedding_provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
+    embedding_dimension: Mapped[int] = mapped_column(Integer, nullable=False)
+    vector_backend: Mapped[str] = mapped_column(String(32), nullable=False)
+    vector_collection: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    storage_backend: Mapped[str] = mapped_column(String(32), nullable=False, default="local")
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class KnowledgeDocumentModel(Base):
     __tablename__ = "knowledge_document"
 
     document_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    knowledge_base_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True, default="kb-default")
     source: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    storage_path: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    file_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    mime_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    parser_type: Mapped[str] = mapped_column(String(64), nullable=False, default="text")
+    chunking_strategy: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    chunking_config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    embedding_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    embedding_dimension: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_latest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class KnowledgeChunkModel(Base):
     __tablename__ = "knowledge_chunk"
 
     chunk_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    knowledge_base_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True, default="kb-default")
     document_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    vector_point_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -97,8 +136,14 @@ class IngestionJobModel(Base):
     __tablename__ = "ingestion_job"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    knowledge_base_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True, default="kb-default")
+    document_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    stage: Mapped[str] = mapped_column(String(64), nullable=False, default="uploaded")
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

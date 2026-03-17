@@ -18,6 +18,7 @@ class GraphState(TypedDict, total=False):
     query: str
     request_id: str
     session_id: str
+    knowledge_base_id: str | None
     chat_history: list[ChatHistoryMessage]
     plan: Plan
     planner_runs: list[PlannerRunTrace]

@@ -15,6 +15,8 @@ class VectorStore(Protocol):
 
     def upsert(self, points: list[VectorPoint]) -> None: ...
 
+    def delete(self, point_ids: list[str]) -> None: ...
+
     def query(self, vector: list[float], *, limit: int) -> list[SearchResult]: ...
 
     def count(self) -> int: ...
@@ -39,6 +41,11 @@ class LocalVectorStore:
             self._points[point.point_id] = point
         self._persist()
 
+    def delete(self, point_ids: list[str]) -> None:
+        for point_id in point_ids:
+            self._points.pop(point_id, None)
+        self._persist()
+
     def query(self, vector: list[float], *, limit: int) -> list[SearchResult]:
         scored: list[tuple[float, VectorPoint]] = []
         for point in self._points.values():
@@ -49,6 +56,8 @@ class LocalVectorStore:
         return [
             SearchResult(
                 chunk_id=point.payload["chunk_id"],
+                document_id=point.payload.get("document_id"),
+                knowledge_base_id=point.payload.get("knowledge_base_id"),
                 source=point.payload["source"],
                 text=point.payload["text"],
                 score=round(score, 4),
@@ -79,10 +88,7 @@ class LocalVectorStore:
         if not self._path.exists():
             return
         payload = json.loads(self._path.read_text(encoding="utf-8"))
-        self._points = {
-            item["point_id"]: VectorPoint.model_validate(item)
-            for item in payload
-        }
+        self._points = {item["point_id"]: VectorPoint.model_validate(item) for item in payload}
 
     def _persist(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,6 +132,15 @@ class QdrantHttpVectorStore:
         }
         self._request("PUT", f"/collections/{self._collection_name}/points", json=payload)
 
+    def delete(self, point_ids: list[str]) -> None:
+        if not point_ids:
+            return
+        self._request(
+            "POST",
+            f"/collections/{self._collection_name}/points/delete",
+            json={"points": point_ids},
+        )
+
     def query(self, vector: list[float], *, limit: int) -> list[SearchResult]:
         payload = {
             "query": vector,
@@ -138,6 +153,8 @@ class QdrantHttpVectorStore:
         return [
             SearchResult(
                 chunk_id=item["payload"]["chunk_id"],
+                document_id=item["payload"].get("document_id"),
+                knowledge_base_id=item["payload"].get("knowledge_base_id"),
                 source=item["payload"]["source"],
                 text=item["payload"]["text"],
                 score=round(float(item.get("score", 0.0)), 4),
