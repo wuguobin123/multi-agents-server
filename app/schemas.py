@@ -12,6 +12,19 @@ from app.config.settings import ChunkingSettings
 IntentType = Literal["qa", "tool", "hybrid", "fallback"]
 ToolSource = Literal["skill", "mcp"]
 ChatRole = Literal["system", "user", "assistant", "tool"]
+BrowserTaskStatus = Literal["queued", "running", "succeeded", "failed"]
+BrowserTaskEventType = Literal[
+    "task_created",
+    "task_started",
+    "preflight_started",
+    "preflight_completed",
+    "agent_started",
+    "browser_step",
+    "browser_done",
+    "task_succeeded",
+    "task_failed",
+    "heartbeat",
+]
 
 
 class Citation(BaseModel):
@@ -127,6 +140,49 @@ class ChatRequest(BaseModel):
     session_id: str
     knowledge_base_id: str | None = None
     chat_history: list[ChatHistoryMessage] = Field(default_factory=list)
+
+
+class BrowserTaskRequest(BaseModel):
+    query: str = Field(min_length=1)
+    session_id: str
+    allowed_domains: list[str] = Field(default_factory=list)
+    cdp_url: str | None = None
+    health_url: str | None = None
+    info_url: str | None = None
+    bearer_token: str | None = None
+    max_steps: int | None = None
+    max_failures: int | None = None
+    retry_delay: int | None = None
+    max_actions_per_step: int | None = None
+    use_vision: bool | None = None
+    disable_env_proxy: bool | None = None
+
+
+class BrowserTaskResult(BaseModel):
+    output: str
+    structured_data: dict[str, Any] | None = None
+
+
+class BrowserTaskEvent(BaseModel):
+    seq: int
+    task_id: str
+    type: BrowserTaskEventType
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
+class BrowserTaskSummary(BaseModel):
+    task_id: str
+    status: BrowserTaskStatus
+    session_id: str
+    query: str
+    result: BrowserTaskResult | None = None
+    error: ErrorDetail | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+    status_url: str
+    events_url: str
 
 
 class AgentRunTrace(BaseModel):
@@ -272,4 +328,3 @@ class DocumentDeleteResponse(BaseModel):
     knowledge_base_id: str
     document_id: str
     deleted: bool
-

@@ -4,12 +4,15 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
 from app.api.responses import JSONLineResponse
 from app.runtime import AppRuntime, get_runtime
 from app.schemas import (
     ChatRequest,
     ChatResponse,
+    BrowserTaskRequest,
+    BrowserTaskSummary,
     DocumentDeleteResponse,
     DocumentUploadResponse,
     IngestionJobResponse,
@@ -74,6 +77,39 @@ async def chat(
 ) -> ChatResponse:
     request_id = getattr(request.state, "request_id", None)
     return await runtime.handle_chat(payload, request_id=request_id)
+
+
+@router.post("/v1/browser/tasks", response_model=BrowserTaskSummary, status_code=202)
+async def create_browser_task(
+    payload: BrowserTaskRequest,
+    request: Request,
+    runtime: AppRuntime = Depends(get_runtime),
+) -> BrowserTaskSummary:
+    request_id = getattr(request.state, "request_id", None)
+    return await runtime.create_browser_task(payload, request_id=request_id)
+
+
+@router.get("/v1/browser/tasks/{task_id}", response_model=BrowserTaskSummary)
+async def get_browser_task(task_id: str, runtime: AppRuntime = Depends(get_runtime)) -> BrowserTaskSummary:
+    return await runtime.get_browser_task(task_id)
+
+
+@router.get("/v1/browser/tasks/{task_id}/events")
+async def stream_browser_task_events(
+    task_id: str,
+    request: Request,
+    runtime: AppRuntime = Depends(get_runtime),
+) -> StreamingResponse:
+    await runtime.get_browser_task(task_id)
+    return StreamingResponse(
+        runtime.browser_task_manager.stream_events(task_id, request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/v1/rag/config", response_model=RAGConfigResponse)

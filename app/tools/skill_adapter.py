@@ -19,7 +19,13 @@ class SkillToolAdapter(BaseToolAdapter):
     async def invoke(self, payload: dict[str, Any]) -> ToolResult:
         started_at = time.perf_counter()
         try:
-            result = await self._handler(payload)
+            result = await self._handler(
+                {
+                    **payload,
+                    "_tool_name": self.spec.name,
+                    "_tool_metadata": self.spec.metadata,
+                }
+            )
             return ToolResult(
                 success=True,
                 output=result.get("output", ""),

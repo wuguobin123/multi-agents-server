@@ -7,6 +7,7 @@ from functools import lru_cache
 from uuid import uuid4
 
 from app.agents import AgentRegistry, FallbackAgent, PlannerAgent, QAAgent, ToolAgent
+from app.browser_tasks import BrowserTaskManager
 from app.config import AppSettings, get_settings
 from app.config.settings import ChunkingSettings
 from app.domain import AgentRunRecord, MessageRecord, SessionRecord, ToolCallRecord
@@ -18,6 +19,8 @@ from app.rag import RAGService
 from app.repositories import ExecutionRepository, build_execution_repository
 from app.schemas import (
     AgentRunTrace,
+    BrowserTaskRequest,
+    BrowserTaskSummary,
     ChatRequest,
     ChatResponse,
     ChatTrace,
@@ -46,6 +49,7 @@ class RuntimeDependencies:
     tool_registry: ToolRegistry
     planner: PlannerAgent
     agent_registry: AgentRegistry
+    browser_task_manager: BrowserTaskManager
     repository: ExecutionRepository
     graph: object
 
@@ -55,6 +59,7 @@ def build_runtime_dependencies(settings: AppSettings) -> RuntimeDependencies:
     repository = build_execution_repository(settings)
     rag_service = RAGService(settings, repository)
     tool_registry = ToolRegistry(settings)
+    browser_task_manager = BrowserTaskManager(tool_registry)
     planner = PlannerAgent(settings, provider)
     agent_registry = AgentRegistry(
         [
@@ -70,6 +75,7 @@ def build_runtime_dependencies(settings: AppSettings) -> RuntimeDependencies:
         tool_registry=tool_registry,
         planner=planner,
         agent_registry=agent_registry,
+        browser_task_manager=browser_task_manager,
         repository=repository,
         graph=graph,
     )
@@ -85,6 +91,7 @@ class AppRuntime:
         self.tool_registry = self.dependencies.tool_registry
         self.planner = self.dependencies.planner
         self.agent_registry = self.dependencies.agent_registry
+        self.browser_task_manager = self.dependencies.browser_task_manager
 
     async def handle_chat(self, request: ChatRequest, *, request_id: str | None = None) -> ChatResponse:
         resolved_request_id = request_id or uuid4().hex
@@ -160,6 +167,17 @@ class AppRuntime:
             self._log_response_summary(response)
             self._persist_request_close(response)
             return response
+
+    async def create_browser_task(
+        self,
+        request: BrowserTaskRequest,
+        *,
+        request_id: str | None = None,
+    ) -> BrowserTaskSummary:
+        return await self.browser_task_manager.create_task(request, request_id=request_id)
+
+    async def get_browser_task(self, task_id: str) -> BrowserTaskSummary:
+        return await self.browser_task_manager.get_task(task_id)
 
     def readiness(self) -> dict[str, object]:
         tool_status = self.tool_registry.readiness()

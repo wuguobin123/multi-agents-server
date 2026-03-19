@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Awaitable, Callable
 
+from app.tools.browser_use import run_browser_use_task
+
 
 SkillHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
@@ -50,4 +52,5 @@ SKILL_HANDLERS: dict[str, SkillHandler] = {
     "flaky_echo": flaky_echo,
     "always_fail": always_fail,
     "slow_echo": slow_echo,
+    "browser_use_task": run_browser_use_task,
 }

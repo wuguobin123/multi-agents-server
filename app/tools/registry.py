@@ -44,7 +44,16 @@ class ToolRegistry:
                     timeout_seconds=config.timeout_seconds,
                     input_schema=config.input_schema,
                     allowed_intents=config.allowed_intents or ["tool", "hybrid"],
-                    metadata={**config.metadata, "handler": config.handler},
+                    metadata={
+                        **config.metadata,
+                        "handler": config.handler,
+                        "runtime_model": {
+                            "provider": self._settings.model.provider,
+                            "name": self._settings.model.name,
+                            "api_key": self._settings.model.api_key,
+                            "base_url": self._settings.model.base_url,
+                        },
+                    },
                 )
                 self._tools[spec.name] = SkillToolAdapter(spec, config.handler)
                 self._circuit_breakers[spec.name] = CircuitBreakerState()

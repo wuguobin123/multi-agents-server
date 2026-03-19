@@ -48,7 +48,25 @@ class MockProvider(ModelProvider):
                 return ["fallback_agent"]
             return []
 
-        tool_terms = {"tool", "工具", "skill", "mcp", "执行", "调用", "run", "list", "search"}
+        tool_terms = {
+            "tool",
+            "工具",
+            "skill",
+            "mcp",
+            "执行",
+            "调用",
+            "run",
+            "list",
+            "search",
+            "browser",
+            "browser-use",
+            "浏览器",
+            "网页",
+            "网站",
+            "页面",
+            "打开网页",
+            "访问网站",
+        }
         rag_terms = {"知识库", "文档", "部署", "总结", "docs", "kb", "manual", "guide"}
         has_tool_signal = any(term in lowered for term in tool_terms)
         has_rag_signal = any(term in lowered for term in rag_terms)

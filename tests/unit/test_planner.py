@@ -70,6 +70,16 @@ def test_planner_routes_to_tool_for_tool_query() -> None:
     assert plan.agents == ["tool_agent"]
 
 
+def test_planner_routes_browser_requests_to_tool() -> None:
+    planner = PlannerAgent(load_settings("configs/app.yaml"), provider=MockProvider())
+
+    plan = __import__("asyncio").run(planner.plan("请用浏览器打开官网并查看最新公告"))
+
+    assert plan.intent == "tool"
+    assert plan.requires_tools is True
+    assert plan.agents == ["tool_agent"]
+
+
 def test_planner_falls_back_when_target_agent_is_unavailable() -> None:
     planner = PlannerAgent(load_settings("configs/app.yaml"), provider=MockProvider())
 

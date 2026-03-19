@@ -48,6 +48,71 @@ tools:
           query:
             type: string
         required: ["query"]
+    - name: browser_use
+      description: 使用 browser-use 云端浏览器执行网页访问、检索和表单类任务。
+      handler: browser_use_task
+      enabled: true
+      source: skill
+      timeout_seconds: 86400
+      allowed_intents: ["tool", "hybrid"]
+      input_schema:
+        type: object
+        properties:
+          query:
+            type: string
+          task:
+            type: string
+          cdp_url:
+            type: string
+          use_vision:
+            type: boolean
+          disable_env_proxy:
+            type: boolean
+          allowed_domains:
+            type: array
+          health_url:
+            type: string
+          info_url:
+            type: string
+          bearer_token:
+            type: string
+          profile_id:
+            type: string
+          proxy_country_code:
+            type: string
+          session_timeout_minutes:
+            type: integer
+          max_steps:
+            type: integer
+          max_failures:
+            type: integer
+          retry_delay:
+            type: integer
+          max_actions_per_step:
+            type: integer
+        required: ["query"]
+      metadata:
+        keywords:
+          - browser-use
+          - browser use
+          - browser
+          - 浏览器
+          - 网页
+          - 网站
+          - 页面
+          - 自动化
+          - 表单
+        allowed_domains: []
+        cdp_url: http://119.45.252.25:9223
+        health_url: http://119.45.252.25:8787/health
+        info_url: http://119.45.252.25:8787/v1/browser/info
+        session_timeout_minutes: 10
+        max_steps: 6
+        max_failures: 1
+        retry_delay: 2
+        max_actions_per_step: 4
+        use_vision: false
+        disable_env_proxy: true
   mcp_tools: []
 
 rag:

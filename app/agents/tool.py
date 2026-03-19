@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import re
+
 from app.tools import ToolRegistry
 from app.schemas import AgentDescriptor, AgentExecutionContext, AgentExecutionResult, ToolSpec
 
 
 class ToolAgent:
     name = "tool_agent"
-    description = "Select and execute the most relevant tool for operational requests."
-    capabilities = ["tool_invocation", "skill_execution", "mcp_execution"]
+    description = "Select and execute tools for operational requests, including browser automation, web navigation, and external integrations."
+    capabilities = ["tool_invocation", "skill_execution", "mcp_execution", "browser_automation", "web_navigation"]
 
     def __init__(self, registry: ToolRegistry) -> None:
         self._registry = registry
@@ -31,7 +33,7 @@ class ToolAgent:
             "chat_history": [item.model_dump() for item in context.chat_history],
         }
         tool_result, trace = await self._registry.invoke(tool.name, payload)
-        answer = tool_result.output if tool_result.output else "工具调用失败，未得到可用结果。"
+        answer = tool_result.output if tool_result.output else (tool_result.error or "工具调用失败，未得到可用结果。")
         return AgentExecutionResult(
             agent_name=self.name,
             success=tool_result.success,
@@ -58,9 +60,28 @@ class ToolAgent:
         ranked: list[tuple[int, ToolSpec]] = []
         for spec in specs:
             score = 0
-            if spec.name.lower() in lowered or spec.name.lower() in hint_text:
+            canonical_names = {
+                spec.name.lower(),
+                spec.name.lower().replace("_", "-"),
+                spec.name.lower().replace("_", " "),
+            }
+            if any(name in lowered or name in hint_text for name in canonical_names):
                 score += 3
-            if any(token in lowered for token in spec.description.lower().split()):
+
+            keywords = [
+                str(item).strip().lower()
+                for item in spec.metadata.get("keywords", [])
+                if str(item).strip()
+            ]
+            if any(keyword in lowered or keyword in hint_text for keyword in keywords):
+                score += 4
+
+            description_tokens = [
+                token
+                for token in re.split(r"[\s,，。；;、/()]+", spec.description.lower())
+                if len(token) >= 2
+            ]
+            if any(token in lowered for token in description_tokens):
                 score += 1
             if "query" in spec.input_schema.get("required", []):
                 score += 1
